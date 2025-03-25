@@ -2,14 +2,15 @@ import React, {useCallback, useLayoutEffect, useMemo} from 'react'
 import {
   ActivityIndicator,
   Pressable,
-  StyleProp,
+  type StyleProp,
   StyleSheet,
-  TextInput,
+  type TextInput,
   View,
-  ViewStyle,
+  type ViewStyle,
 } from 'react-native'
 import {ScrollView as RNGHScrollView} from 'react-native-gesture-handler'
-import {AppBskyActorDefs, AppBskyFeedDefs, moderateProfile} from '@atproto/api'
+import {type AppBskyActorDefs, type AppBskyFeedDefs, moderateProfile} from '@atproto/api'
+import {XRPCError} from '@atproto/xrpc'
 import {msg, Trans} from '@lingui/macro'
 import {useLingui} from '@lingui/react'
 import {useFocusEffect, useNavigation, useRoute} from '@react-navigation/native'
@@ -21,10 +22,10 @@ import {HITSLOP_10} from '#/lib/constants'
 import {useNonReactiveCallback} from '#/lib/hooks/useNonReactiveCallback'
 import {MagnifyingGlassIcon} from '#/lib/icons'
 import {makeProfileLink} from '#/lib/routes/links'
-import {NavigationProp} from '#/lib/routes/types'
+import {type NavigationProp} from '#/lib/routes/types'
 import {
-  NativeStackScreenProps,
-  SearchTabNavigatorParams,
+  type NativeStackScreenProps,
+  type SearchTabNavigatorParams,
 } from '#/lib/routes/types'
 import {sanitizeDisplayName} from '#/lib/strings/display-names'
 import {augmentSearchQuery} from '#/lib/strings/helpers'
@@ -41,7 +42,7 @@ import {
   useProfilesQuery,
 } from '#/state/queries/profile'
 import {useSearchPostsQuery} from '#/state/queries/search-posts'
-import {useSession} from '#/state/session'
+import {useRequireAuth, useSession} from '#/state/session'
 import {useSetMinimalShellMode} from '#/state/shell'
 import {Pager} from '#/view/com/pager/Pager'
 import {TabBar} from '#/view/com/pager/TabBar'
@@ -52,7 +53,7 @@ import {List} from '#/view/com/util/List'
 import {UserAvatar} from '#/view/com/util/UserAvatar'
 import {Explore} from '#/view/screens/Search/Explore'
 import {SearchLinkCard, SearchProfileCard} from '#/view/shell/desktop/Search'
-import {makeSearchQuery, Params, parseSearchQuery} from '#/screens/Search/utils'
+import {makeSearchQuery, type Params, parseSearchQuery} from '#/screens/Search/utils'
 import {
   atoms as a,
   native,
@@ -75,7 +76,7 @@ import * as Layout from '#/components/Layout'
 import * as Menu from '#/components/Menu'
 import {Text} from '#/components/Typography'
 import {account, useStorage} from '#/storage'
-import * as bsky from '#/types/bsky'
+import type * as bsky from '#/types/bsky'
 
 function Loader() {
   return (
@@ -144,6 +145,7 @@ let SearchScreenPostResults = ({
   const {_} = useLingui()
   const {currentAccount} = useSession()
   const [isPTR, setIsPTR] = React.useState(false)
+  const requireAuth = useRequireAuth()
 
   const augmentedQuery = React.useMemo(() => {
     return augmentSearchQuery(query || '', {did: currentAccount?.did})
@@ -159,6 +161,14 @@ let SearchScreenPostResults = ({
     isFetchingNextPage,
     hasNextPage,
   } = useSearchPostsQuery({query: augmentedQuery, sort, enabled: active})
+
+  React.useEffect(() => {
+    if (error instanceof XRPCError) {
+      if (error.status == 1) {
+        requireAuth(() => {})
+      }
+    }
+  }, [error, requireAuth])
 
   const onPullToRefresh = React.useCallback(async () => {
     setIsPTR(true)
@@ -199,7 +209,7 @@ let SearchScreenPostResults = ({
     return temp
   }, [posts, isFetchingNextPage])
 
-  return error ? (
+  return error && !(error instanceof XRPCError && error.status == 1) ? (
     <EmptyState
       message={_(
         msg`We're sorry, but your search could not be completed. Please try again in a few minutes.`,
@@ -735,7 +745,7 @@ export function SearchScreenShell({
     setShowAutocomplete(false)
     if (isWeb) {
       // Empty params resets the URL to be /search rather than /search?q=
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const {q: _q, ...parameters} = (route.params ?? {}) as {
         [key: string]: string
       }
@@ -781,7 +791,7 @@ export function SearchScreenShell({
   const onSoftReset = React.useCallback(() => {
     if (isWeb) {
       // Empty params resets the URL to be /search rather than /search?q=
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const {q: _q, ...parameters} = (route.params ?? {}) as {
         [key: string]: string
       }
