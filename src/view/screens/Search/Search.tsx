@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import {ScrollView as RNGHScrollView} from 'react-native-gesture-handler'
 import {AppBskyActorDefs, AppBskyFeedDefs, moderateProfile} from '@atproto/api'
+import {XRPCError} from '@atproto/xrpc'
 import {msg, Trans} from '@lingui/macro'
 import {useLingui} from '@lingui/react'
 import {useFocusEffect, useNavigation, useRoute} from '@react-navigation/native'
@@ -41,7 +42,7 @@ import {
   useProfilesQuery,
 } from '#/state/queries/profile'
 import {useSearchPostsQuery} from '#/state/queries/search-posts'
-import {useSession} from '#/state/session'
+import {useSession, useRequireAuth} from '#/state/session'
 import {useSetMinimalShellMode} from '#/state/shell'
 import {Pager} from '#/view/com/pager/Pager'
 import {TabBar} from '#/view/com/pager/TabBar'
@@ -144,6 +145,7 @@ let SearchScreenPostResults = ({
   const {_} = useLingui()
   const {currentAccount} = useSession()
   const [isPTR, setIsPTR] = React.useState(false)
+  const requireAuth = useRequireAuth()
 
   const augmentedQuery = React.useMemo(() => {
     return augmentSearchQuery(query || '', {did: currentAccount?.did})
@@ -160,6 +162,14 @@ let SearchScreenPostResults = ({
     hasNextPage,
   } = useSearchPostsQuery({query: augmentedQuery, sort, enabled: active})
 
+  React.useEffect(() => {
+    if (error instanceof XRPCError) {
+      if (error.status == 1) {
+        requireAuth(() => {})
+      }
+    }
+  }, [error, requireAuth])
+ 
   const onPullToRefresh = React.useCallback(async () => {
     setIsPTR(true)
     await refetch()
@@ -199,7 +209,7 @@ let SearchScreenPostResults = ({
     return temp
   }, [posts, isFetchingNextPage])
 
-  return error ? (
+  return (error && !(error instanceof XRPCError && error.status == 1)) ? (
     <EmptyState
       message={_(
         msg`We're sorry, but your search could not be completed. Please try again in a few minutes.`,
